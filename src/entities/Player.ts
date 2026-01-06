@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 export class Player extends Phaser.Physics.Arcade.Sprite {
     public hp: number = 100;
     public maxHP: number = 100;
-    public speed: number = 300;
+    public speed: number = 150;
     public mana: number = 0;
     public maxMana: number = 100;
     public beamHeat: number = 0;

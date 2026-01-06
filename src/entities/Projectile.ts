@@ -11,7 +11,7 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
         
         // Calculate velocity once to avoid issues if target is destroyed
         const angle = Phaser.Math.Angle.Between(x, y, target.x, target.y);
-        scene.physics.velocityFromRotation(angle, 400, (this.body as Phaser.Physics.Arcade.Body).velocity);
+        scene.physics.velocityFromRotation(angle, 200, (this.body as Phaser.Physics.Arcade.Body).velocity);
 
         // Auto destroy after 3 seconds if no hit
         scene.time.delayedCall(3000, () => {

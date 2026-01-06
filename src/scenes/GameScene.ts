@@ -23,7 +23,7 @@ export class GameScene extends Phaser.Scene {
     public columnDamageThisFrame: boolean = false;
     private lastSpawnTime: number = 0;
     private lastBonusSpawnTime: number = 0;
-    private readonly SPAWN_INTERVAL = 1800;
+    private readonly SPAWN_INTERVAL = 2200;
     private readonly BONUS_INTERVAL = 15000;
 
     private buffTimers: { [key: string]: number } = {
@@ -84,7 +84,7 @@ export class GameScene extends Phaser.Scene {
 
     create() {
         const w = this.scale.width, h = this.scale.height;
-        const mw = w * 2, mh = h * 2;
+        const mw = w * 2.4, mh = h * 2.4;
 
         // Background dots
         const bg = this.add.graphics();
@@ -190,7 +190,7 @@ export class GameScene extends Phaser.Scene {
                 this.buffTimers[k] -= delta;
                 if(this.buffTimers[k] <= 0) {
                     this.buffTimers[k] = 0;
-                    if(k === 'speed') this.player.speed = 300;
+                    if(k === 'speed') this.player.speed = 150;
                 }
             }
         });
@@ -310,7 +310,7 @@ export class GameScene extends Phaser.Scene {
     private spawnEnemy() {
         const side = Phaser.Math.Between(0, 3);
         let x = 0, y = 0;
-        const mw = this.scale.width * 2, mh = this.scale.height * 2;
+        const mw = this.scale.width * 2.4, mh = this.scale.height * 2.4;
         if(side===0){x=Phaser.Math.Between(0,mw); y=-50;}
         else if(side===1){x=Phaser.Math.Between(0,mw); y=mh+50;}
         else if(side===2){x=-50; y=Phaser.Math.Between(0,mh);}
@@ -318,10 +318,10 @@ export class GameScene extends Phaser.Scene {
 
         const r = Math.random();
         let t: EnemyType = 'normal';
-        let stats = { hp: 100, speed: 120 };
-        if(r < 0.20) { t='tank'; stats={hp:450, speed:75}; } // Buffed tank hp
-        else if(r < 0.45) { t='kami'; stats={hp:50, speed:240}; } // More kamikazes
-        else if(r < 0.65) { t='healer'; stats={hp:120, speed:140}; } // Buffed healer hp/speed
+        let stats = { hp: 100, speed: 60 };
+        if(r < 0.20) { t='tank'; stats={hp:450, speed:37}; } // Buffed tank hp
+        else if(r < 0.45) { t='kami'; stats={hp:50, speed:120}; } // More kamikazes
+        else if(r < 0.65) { t='healer'; stats={hp:120, speed:70}; } // Buffed healer hp/speed
 
         this.enemies.add(new Enemy(this, x, y, t, stats));
     }
@@ -339,7 +339,7 @@ export class GameScene extends Phaser.Scene {
         if(type === 'b_damage') this.buffTimers.damage = 12000;
         else if(type === 'b_cool') this.buffTimers.noOverheat = 12000;
         else if(type === 'b_heal') this.columns.getChildren().forEach((c:any) => { if(c.active) c.setData('hp', Math.min(300, c.getData('hp')+60)); });
-        else if(type === 'b_speed') { this.buffTimers.speed = 12000; this.player.speed = 450; }
+        else if(type === 'b_speed') { this.buffTimers.speed = 12000; this.player.speed = 225; }
         else if(type === 'b_attract') this.buffTimers.attract = 12000;
-    }
+        }
 }
