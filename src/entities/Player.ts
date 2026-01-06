@@ -3,13 +3,12 @@ import Phaser from 'phaser';
 export class Player extends Phaser.Physics.Arcade.Sprite {
     public hp: number = 100;
     public maxHP: number = 100;
-    public speed: number = 150;
+    public speed: number = 170; // should be faster than demons
     public mana: number = 0;
     public maxMana: number = 100;
     public beamHeat: number = 0;
     public maxHeat: number = 100;
     public isOverheated: boolean = false;
-    public isInvulnerable: boolean = false;
     public isSuperActive: boolean = false;
     public superAttackRadius: number = 0;
 
@@ -19,6 +18,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     private particles: Phaser.GameObjects.Particles.ParticleEmitter;
     private buffTimers: { [key: string]: number } = {};
 
+    private lastBeamAngle: number = 0;
     private cooldownTime: number = 3000;
     private cooldownElapsed: number = 0;
 
@@ -117,12 +117,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
             if (this.beamHeat < 0) this.beamHeat = 0;
         }
 
-        // Attack
+        // Beam Logic
+        const beamAngle = isAttacking ? right.rotation : this.lastBeamAngle;
         if (isAttacking && !this.isOverheated) {
-            const rotation = right.rotation;
-            this.setFlipX(Math.cos(rotation) > 0);
+            this.lastBeamAngle = right.rotation;
+        }
+        
+        // Beam always drawn (transparent when not active)
+        this.drawBeam(beamAngle, isAttacking && !this.isOverheated);
 
-            this.drawBeam(rotation);
+        if (isAttacking && !this.isOverheated) {
+            this.setFlipX(Math.cos(beamAngle) > 0);
             if (this.buffTimers.noOverheat <= 0) {
                 this.beamHeat += 0.7; // HEAT_GAIN
             }
@@ -143,16 +148,29 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
-    private drawBeam(angle: number) {
+    private drawBeam(angle: number, isActive: boolean) {
+        if (!isActive) return;
+
         const beamL = 180;
         const beamW = Phaser.Math.DegToRad(this.buffTimers.damage > 0 ? 80 : 50);
-        const ratio = this.beamHeat / this.maxHeat;
-        const color = this.buffTimers.damage > 0 ? 0xff8c00 : Phaser.Display.Color.GetColor(255, Math.floor(255 * (1 - ratio)), 0);
+        const color = this.buffTimers.damage > 0 ? 0xffbb00 : 0xffff00;
+
+        // High-fidelity gradient (15 layers for buttery smooth fade)
+        const steps = 15;
+        const baseAlpha = this.buffTimers.damage > 0 ? 0.45 : 0.35;
         
-        this.beamGraphics.lineStyle(2, color, 0.4).fillStyle(color, 0.25).beginPath();
-        this.beamGraphics.moveTo(this.x, this.y);
-        this.beamGraphics.arc(this.x, this.y, beamL, angle - beamW/2, angle + beamW/2);
-        this.beamGraphics.closePath().fillPath().strokePath();
+        for (let i = steps; i >= 1; i--) {
+            const ratio = i / steps;
+            const layerAlpha = (baseAlpha / steps) * 1.5; // Distribute alpha across layers
+            const layerRadius = beamL * ratio;
+            
+            this.beamGraphics.fillStyle(color, layerAlpha);
+            this.beamGraphics.beginPath();
+            this.beamGraphics.moveTo(this.x, this.y);
+            this.beamGraphics.arc(this.x, this.y, layerRadius, angle - beamW/2, angle + beamW/2);
+            this.beamGraphics.closePath();
+            this.beamGraphics.fillPath();
+        }
     }
 
     public activateSuper() {
@@ -165,7 +183,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         // Damage logic (similar to old GameScene implementation)
         const enemies = (this.scene as any).enemies;
         if (enemies) {
-            [...enemies.getChildren()].forEach((enemy: any) => {
+            const list = enemies.getChildren();
+            for (let i = 0; i < list.length; i++) {
+                const enemy = list[i] as any;
                 if (enemy.active) {
                     const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                     if (dist < 400) {
@@ -173,7 +193,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                         if (enemy.hp <= 0) enemy.destroy();
                     }
                 }
-            });
+            }
         }
 
         this.scene.tweens.add({
@@ -190,23 +210,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     public takeDamage(amount: number) {
-        if (this.isInvulnerable) return;
         this.hp = Math.max(0, this.hp - amount);
-        this.triggerInvulnerability();
-    }
-
-    private triggerInvulnerability() {
-        this.isInvulnerable = true;
-        this.scene.tweens.add({
-            targets: this,
-            alpha: 0.4,
-            duration: 100,
-            yoyo: true,
-            repeat: 4,
-            onComplete: () => {
-                this.isInvulnerable = false;
-                this.setAlpha(1);
-            }
+        
+        // Damage Flash instead of invulnerability to allow stacking
+        this.setTint(0xff5555);
+        this.scene.time.delayedCall(120, () => {
+            if (this.active) this.clearTint();
         });
     }
 

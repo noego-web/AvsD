@@ -45,15 +45,32 @@ export class GameScene extends Phaser.Scene {
     }
 
     preload() {
+        // Character & environment skins
         this.load.image('player', 'src/assets/images/angels/angel-3.webp');
+        this.load.image('enemy_normal', 'src/assets/images/demons/demon.webp');
+        this.load.image('enemy_tank', 'src/assets/images/demons/demon-tank.webp');
+        this.load.image('enemy_kami', 'src/assets/images/demons/demon-caze.webp');
+        this.load.image('enemy_healer', 'src/assets/images/demons/demon-healer.webp');
+        this.load.image('column_1', 'src/assets/images/columns/column-1.webp');
+        this.load.image('column_2', 'src/assets/images/columns/column-2.webp');
+        this.load.image('column_3', 'src/assets/images/columns/column-3.webp');
+
+        // Map skin
+        this.load.image('map_bg', 'src/assets/images/maps/map-1.png');
+
+        // Power-up skins
+        this.load.image('b_damage', 'src/assets/images/power-ups/PU-double-damage.webp');
+        this.load.image('b_cool', 'src/assets/images/power-ups/PU-infinite-coolant.webp');
+        this.load.image('b_heal', 'src/assets/images/power-ups/PU-repair-kit.webp');
+        this.load.image('b_speed', 'src/assets/images/power-ups/PU-speed-boost.webp');
+        this.load.image('b_attract', 'src/assets/images/power-ups/PU-attract.webp');
+
+        // UI skins
+        this.load.image('pause_button', 'src/assets/images/UX/buttons/pause-button.webp');
+
         const g = this.make.graphics({ x: 0, y: 0 });
-        
-        // Textures
-        g.clear().fillStyle(0xff0000).fillRect(0,0,32,32).generateTexture('enemy_normal', 32, 32);
-        g.clear().fillStyle(0x8b4513).fillRect(0,0,48,48).lineStyle(3,0).strokeRect(0,0,48,48).generateTexture('enemy_tank', 48, 48);
-        g.clear().fillStyle(0xffff00).fillCircle(16,16,16).lineStyle(2,0xff0000).strokeCircle(16,16,16).generateTexture('enemy_kami', 32, 32);
-        g.clear().fillStyle(0xffffff).fillRect(0,0,32,32).fillStyle(0x0000ff).fillRect(14,4,4,24).fillRect(4,14,24,4).generateTexture('enemy_healer', 32, 32);
-        g.clear().fillStyle(0xdddddd).fillRect(0,0,40,80).lineStyle(2,0x888888).strokeRect(0,0,40,80).fillStyle(0xaaaaff).fillRect(5,5,30,20).generateTexture('column', 40, 80);
+
+        // Remaining generated textures (no visual skins exist)
         g.clear().fillStyle(0x00ff00).fillCircle(6,6,6).generateTexture('bullet', 12, 12);
 
         // Auras and Particles
@@ -76,25 +93,38 @@ export class GameScene extends Phaser.Scene {
         // Spark Particle
         g.clear().fillStyle(0xffffff).fillCircle(4, 4, 4).generateTexture('spark', 8, 8);
 
-        const drawB = (n: string, c: number) => g.clear().fillStyle(c).fillCircle(16,16,16).lineStyle(2,0xffffff).strokeCircle(16,16,16).generateTexture(n, 32, 32);
-        drawB('b_damage', 0xff4500); drawB('b_cool', 0x00bfff); drawB('b_heal', 0x32cd32); drawB('b_speed', 0xffd700); drawB('b_attract', 0x9400d3);
-        
+        // (Removed procedural textures to use high-quality skins instead)
         g.destroy();
     }
 
     create() {
         const w = this.scale.width, h = this.scale.height;
-        const mw = w * 2.4, mh = h * 2.4;
+        const mw = w * 1.3, mh = h * 1.3; // Map increased to 1.3x (+30%) as requested
 
-        // Background dots
-        const bg = this.add.graphics();
-        bg.fillStyle(0x555555);
-        for(let i=0; i<200; i++) bg.fillCircle(Phaser.Math.Between(0, mw), Phaser.Math.Between(0, mh), 1.5);
+        // Background Map (Centered and scaled to cover map bounds)
+        const map = this.add.image(mw/2, mh/2, 'map_bg');
+        const scale = Math.max(mw / map.width, mh / map.height);
+        map.setScale(scale).setAlpha(0.9);
 
-        this.player = new Player(this, mw/2, mh/2 + 150);
         this.columns = this.physics.add.staticGroup();
-        this.columns.add(new Column(this, mw/2 - 200, mh/2));
-        this.columns.add(new Column(this, mw/2 + 200, mh/2));
+        const columnSkins = ['column_1', 'column_2', 'column_3'];
+        for (let i = 0; i < 2; i++) {
+            const cx = Phaser.Math.Between(mw * 0.35, mw * 0.65);
+            const cy = Phaser.Math.Between(mh * 0.35, mh * 0.65);
+            
+            let overlap = false;
+            this.columns.getChildren().forEach((c: any) => {
+                if (Phaser.Math.Distance.Between(cx, cy, c.x, c.y) < 150) overlap = true;
+            });
+
+            if (!overlap) {
+                this.columns.add(new Column(this, cx, cy, Phaser.Utils.Array.GetRandom(columnSkins)));
+            } else {
+                i--;
+            }
+        }
+
+        this.player = new Player(this, mw/2, mh/2);
 
         this.enemies = this.physics.add.group();
         this.bonuses = this.physics.add.group();
@@ -113,15 +143,14 @@ export class GameScene extends Phaser.Scene {
     private setupPhysics() {
         this.physics.add.overlap(this.player, this.bonuses, (_p, b: any) => this.collectBonus(b));
         this.physics.add.overlap(this.player, this.projectiles, (_p, pr: any) => {
-            if(!this.player.isInvulnerable) {
-                this.player.takeDamage(5);
-                pr.destroy();
-            }
+            this.player.takeDamage(5);
+            pr.destroy();
         });
         this.physics.add.overlap(this.projectiles, this.columns, (pr: any, col: any) => {
             if (col.active) {
                 const currentHP = col.getData('hp');
                 col.setData('hp', Math.max(0, currentHP - 10));
+                col.onHit();
                 this.columnDamageThisFrame = true;
                 pr.destroy();
                 if (currentHP - 10 <= 0) col.setActive(false).setVisible(false);
@@ -155,15 +184,26 @@ export class GameScene extends Phaser.Scene {
             else this.rightJoystick.setVisible(false);
         });
 
-        // Pause Button
+        // Pause Button (image skin)
         const pBtnX = this.scale.width - 60;
-        const pBg = this.add.circle(pBtnX, 50, 45, 0xffffff, 0.4).setScrollFactor(0).setDepth(10000);
-        this.add.text(pBtnX, 50, '||', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
-        const pZone = this.add.zone(pBtnX, 50, 90, 90).setScrollFactor(0).setInteractive({ useHandCursor: true }).setDepth(10002);
+        const pauseSprite = this.add.sprite(pBtnX, 50, 'pause_button')
+            .setScrollFactor(0)
+            .setDepth(10001)
+            .setInteractive({ useHandCursor: true });
+        const pauseMaxWidth = 72;
+        const scaleFactor = pauseMaxWidth / pauseSprite.width;
+        pauseSprite.setScale(scaleFactor);
+
+        const pZone = this.add.zone(pBtnX, 50, pauseSprite.displayWidth, pauseSprite.displayHeight)
+            .setScrollFactor(0)
+            .setInteractive({ useHandCursor: true })
+            .setDepth(10002);
         
         pZone.on('pointerdown', (p: any) => { p.event.stopPropagation(); this.togglePause(); });
+        pauseSprite.on('pointerdown', (p: any) => { p.event.stopPropagation(); this.togglePause(); });
         this.scale.on('resize', (s:any) => {
-            pBg.x = s.width - 60; pZone.x = s.width - 60;
+            pauseSprite.x = s.width - 60;
+            pZone.x = s.width - 60;
         });
     }
 
@@ -190,7 +230,7 @@ export class GameScene extends Phaser.Scene {
                 this.buffTimers[k] -= delta;
                 if(this.buffTimers[k] <= 0) {
                     this.buffTimers[k] = 0;
-                    if(k === 'speed') this.player.speed = 150;
+                    if(k === 'speed') this.player.speed = 112;
                 }
             }
         });
@@ -226,8 +266,17 @@ export class GameScene extends Phaser.Scene {
 
         // Game Over Check
         let activeCols = 0;
-        this.columns.getChildren().forEach((c: any) => { if(c.active) { activeCols++; c.updateUI(this.hud.getGraphics()); } });
-        if(activeCols === 0 || this.player.hp <= 0) {
+        const cols = this.columns.getChildren();
+        const graphics = this.hud.getGraphics();
+        for (let i = 0; i < cols.length; i++) {
+            const c = cols[i] as any;
+            if (c.active) {
+                activeCols++;
+                c.updateUI(graphics);
+            }
+        }
+
+        if (activeCols === 0 || this.player.hp <= 0) {
             this.scene.pause();
             this.scene.launch('GameOverScene');
         }
@@ -235,21 +284,32 @@ export class GameScene extends Phaser.Scene {
 
     private handleBeamCombat(rotation: number) {
         const dMult = this.buffTimers.damage > 0 ? 2 : 1;
-        [...this.enemies.getChildren()].forEach((e: any) => {
-            if(!e.active) return;
+        const enemies = this.enemies.getChildren();
+        const beamAngleDeg = Phaser.Math.RadToDeg(rotation);
+        const halfWidth = this.buffTimers.damage > 0 ? 40 : 25;
+
+        for (let i = 0; i < enemies.length; i++) {
+            const e = enemies[i] as any;
+            if (!e.active) continue;
+
             const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, e.x, e.y);
-            if(dist < 180) {
+            if (dist < 180) {
                 const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, e.x, e.y);
-                const diff = Math.abs(Phaser.Math.Angle.ShortestBetween(Phaser.Math.RadToDeg(rotation), Phaser.Math.RadToDeg(angle)));
-                if(diff < (this.buffTimers.damage > 0 ? 40 : 25)) {
+                const angleDeg = Phaser.Math.RadToDeg(angle);
+                const diff = Math.abs(Phaser.Math.Angle.ShortestBetween(beamAngleDeg, angleDeg));
+                
+                if (diff < halfWidth) {
                     e.hp -= 2.5 * dMult;
                     this.player.addMana(0.5);
                     e.setTint(0xffaaaa);
-                    this.time.delayedCall(50, () => { if(e.active) e.clearTint(); });
-                    if(e.hp <= 0) { e.destroy(); this.player.addMana(20); }
+                    this.time.delayedCall(50, () => { if (e.active) e.clearTint(); });
+                    if (e.hp <= 0) {
+                        e.destroy();
+                        this.player.addMana(20);
+                    }
                 }
             }
-        });
+        }
     }
 
     private getEnemyTarget(e: Enemy, isAttract: boolean) {
@@ -301,16 +361,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     public handleMeleeAttack(e: Enemy) {
-        if(!this.player.isInvulnerable) {
-            const dmg = e.enemyType === 'tank' ? 15 : 10;
-            this.player.takeDamage(dmg);
-        }
+        const dmg = e.enemyType === 'tank' ? 15 : 10;
+        this.player.takeDamage(dmg);
     }
 
     private spawnEnemy() {
+        const mw = this.scale.width * 1.3, mh = this.scale.height * 1.3;
         const side = Phaser.Math.Between(0, 3);
         let x = 0, y = 0;
-        const mw = this.scale.width * 2.4, mh = this.scale.height * 2.4;
         if(side===0){x=Phaser.Math.Between(0,mw); y=-50;}
         else if(side===1){x=Phaser.Math.Between(0,mw); y=mh+50;}
         else if(side===2){x=-50; y=Phaser.Math.Between(0,mh);}
@@ -318,17 +376,18 @@ export class GameScene extends Phaser.Scene {
 
         const r = Math.random();
         let t: EnemyType = 'normal';
-        let stats = { hp: 100, speed: 60 };
-        if(r < 0.20) { t='tank'; stats={hp:450, speed:37}; } // Buffed tank hp
-        else if(r < 0.45) { t='kami'; stats={hp:50, speed:120}; } // More kamikazes
-        else if(r < 0.65) { t='healer'; stats={hp:120, speed:70}; } // Buffed healer hp/speed
+        let stats = { hp: 100, speed: 45 }; // Normal: 60 -> 45
+        if(r < 0.20) { t='tank'; stats={hp:450, speed:28}; } // Tank: 37 -> 28
+        else if(r < 0.45) { t='kami'; stats={hp:50, speed:90}; } // Kami: 120 -> 90
+        else if(r < 0.65) { t='healer'; stats={hp:120, speed:53}; } // Healer: 70 -> 53
 
         this.enemies.add(new Enemy(this, x, y, t, stats));
     }
 
     private spawnBonus() {
-        const x = Phaser.Math.Between(100, (this.scale.width*2)-100);
-        const y = Phaser.Math.Between(100, (this.scale.height*2)-100);
+        const mw = this.scale.width * 1.3, mh = this.scale.height * 1.3;
+        const x = Phaser.Math.Between(100, mw - 100);
+        const y = Phaser.Math.Between(100, mh - 100);
         const types: BonusType[] = ['b_damage', 'b_cool', 'b_heal', 'b_speed', 'b_attract'];
         this.bonuses.add(new Bonus(this, x, y, Phaser.Utils.Array.GetRandom(types)));
     }
@@ -339,7 +398,7 @@ export class GameScene extends Phaser.Scene {
         if(type === 'b_damage') this.buffTimers.damage = 12000;
         else if(type === 'b_cool') this.buffTimers.noOverheat = 12000;
         else if(type === 'b_heal') this.columns.getChildren().forEach((c:any) => { if(c.active) c.setData('hp', Math.min(300, c.getData('hp')+60)); });
-        else if(type === 'b_speed') { this.buffTimers.speed = 12000; this.player.speed = 225; }
+        else if(type === 'b_speed') { this.buffTimers.speed = 12000; this.player.speed = 169; } // 225 -> 169
         else if(type === 'b_attract') this.buffTimers.attract = 12000;
         }
 }

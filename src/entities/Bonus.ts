@@ -13,6 +13,9 @@ export class Bonus extends Phaser.Physics.Arcade.Sprite {
         this.bonusType = type;
         this.setData('type', type);
 
+        this.setDisplaySize(24, 24);
+        (this.body as Phaser.Physics.Arcade.Body).setCircle(12);
+
         scene.tweens.add({
             targets: this,
             y: y - 15,
