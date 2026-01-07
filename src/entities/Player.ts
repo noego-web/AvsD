@@ -22,8 +22,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     private cooldownTime: number = 3000;
     private cooldownElapsed: number = 0;
 
-    constructor(scene: Phaser.Scene, x: number, y: number) {
-        super(scene, x, y, 'player');
+    // Skin Multipliers
+    public manaMult: number = 1.0;
+    public speedMult: number = 1.0;
+    public damageMult: number = 1.0;
+    public cooldownMult: number = 1.0;
+
+    constructor(scene: Phaser.Scene, x: number, y: number, texture: string = 'player', 
+        multipliers: { mana: number, speed: number, damage: number, cooldown: number } = { mana: 1, speed: 1, damage: 1, cooldown: 1 }) {
+        super(scene, x, y, texture);
+        this.manaMult = multipliers.mana;
+        this.speedMult = multipliers.speed;
+        this.damageMult = multipliers.damage;
+        this.cooldownMult = multipliers.cooldown;
+
+        this.speed = 170 * this.speedMult;
+        this.cooldownTime = 3000 * this.cooldownMult;
         scene.add.existing(this);
         scene.physics.add.existing(this);
 
@@ -123,11 +137,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
             this.lastBeamAngle = right.rotation;
         }
         
-        // Beam always drawn (transparent when not active)
+        // Beam logic: only draw if attacking AND not overheated
         this.drawBeam(beamAngle, isAttacking && !this.isOverheated);
 
         if (isAttacking && !this.isOverheated) {
-            this.setFlipX(Math.cos(beamAngle) > 0);
             if (this.buffTimers.noOverheat <= 0) {
                 this.beamHeat += 0.7; // HEAT_GAIN
             }
@@ -137,6 +150,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                 this.beamHeat = this.maxHeat;
                 this.cooldownElapsed = 0;
             }
+        }
+        
+        // Horizontal Flipping based on movement or aim
+        if (isAttacking) {
+            this.setFlipX(Math.cos(beamAngle) > 0);
+        } else if (isMoving) {
+            this.setFlipX(Math.cos(left.rotation) > 0);
         }
 
         // Super Attack Rendering
@@ -155,13 +175,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         const beamW = Phaser.Math.DegToRad(this.buffTimers.damage > 0 ? 80 : 50);
         const color = this.buffTimers.damage > 0 ? 0xffbb00 : 0xffff00;
 
-        // High-fidelity gradient (15 layers for buttery smooth fade)
-        const steps = 15;
+        // Ultra High-fidelity gradient (20 layers for ultra smooth fade)
+        const steps = 20;
         const baseAlpha = this.buffTimers.damage > 0 ? 0.45 : 0.35;
         
         for (let i = steps; i >= 1; i--) {
             const ratio = i / steps;
-            const layerAlpha = (baseAlpha / steps) * 1.5; // Distribute alpha across layers
+            const layerAlpha = (baseAlpha / steps) * 1.6;
             const layerRadius = beamL * ratio;
             
             this.beamGraphics.fillStyle(color, layerAlpha);
@@ -220,7 +240,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     public addMana(amount: number) {
-        this.mana = Math.min(this.maxMana, this.mana + amount);
+        this.mana = Math.min(this.maxMana, this.mana + amount * this.manaMult);
     }
 
     destroy(fromScene?: boolean) {

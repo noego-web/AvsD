@@ -20,7 +20,7 @@ export class PauseScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(100001);
 
         // Resume Button
-        this.createButton(width / 2, height * 0.5, 'RESUME', () => {
+        this.createButton(width / 2, height * 0.40, 'RESUME', () => {
             const gameScene = this.scene.get('GameScene') as GameScene;
             if (gameScene) {
                 gameScene.resumeFromPause();
@@ -28,8 +28,15 @@ export class PauseScene extends Phaser.Scene {
             this.scene.stop();
         });
 
+        // Restart Button
+        this.createButton(width / 2, height * 0.58, 'RESTART', () => {
+            this.scene.stop('GameScene');
+            this.scene.start('GameScene');
+            this.scene.stop();
+        });
+
         // Menu Button
-        this.createButton(width / 2, height * 0.65, 'QUIT TO MENU', () => {
+        this.createButton(width / 2, height * 0.76, 'QUIT TO MENU', () => {
             this.scene.stop('GameScene'); 
             this.scene.start('MainMenuScene');
         });
@@ -37,18 +44,38 @@ export class PauseScene extends Phaser.Scene {
 
     private createButton(x: number, y: number, label: string, callback: () => void) {
         const btn = this.add.container(x, y).setDepth(100001);
-        const bg = this.add.rectangle(0, 0, 240, 60, 0xffffff).setInteractive({ useHandCursor: true });
+        
+        const w = 200, h = 52;
+        const bg = this.add.graphics();
+        
+        const drawBtn = (color: number) => {
+            bg.clear();
+            bg.fillStyle(color, 1);
+            bg.fillRoundedRect(-w/2, -h/2, w, h, 12);
+            bg.lineStyle(2, 0x9d50bb, 0.8);
+            bg.strokeRoundedRect(-w/2, -h/2, w, h, 12);
+        };
+
+        drawBtn(0x2a0845); // Dark Purple base
+
         const text = this.add.text(0, 0, label, {
             fontSize: '24px',
-            color: '#000000',
+            color: '#e0c3fc',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
         btn.add([bg, text]);
 
-        bg.on('pointerover', () => bg.setFillStyle(0xdddddd));
-        bg.on('pointerout', () => bg.setFillStyle(0xffffff));
-        bg.on('pointerdown', callback);
+        const hitZone = this.add.rectangle(0, 0, w, h, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+        btn.add(hitZone);
+
+        hitZone.on('pointerover', () => drawBtn(0x4b0082));
+        hitZone.on('pointerout', () => drawBtn(0x2a0845));
+        hitZone.on('pointerdown', () => {
+            bg.setAlpha(0.7);
+            callback();
+        });
 
         return btn;
     }

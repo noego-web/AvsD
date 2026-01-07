@@ -17,6 +17,7 @@
     "@capacitor/cli": "^8.0.0",
     "@capacitor/core": "^8.0.0",
     "@capacitor/ios": "^8.0.0",
+    "@capacitor/preferences": "^8.0.0",
     "phaser": "^3.90.0",
     "phaser3-rex-plugins": "^1.80.17"
   }

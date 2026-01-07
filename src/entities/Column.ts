@@ -3,8 +3,9 @@ import Phaser from 'phaser';
 export class Column extends Phaser.Physics.Arcade.Sprite {
     public maxHP: number = 300;
 
-    constructor(scene: Phaser.Scene, x: number, y: number, textureKey: string) {
+    constructor(scene: Phaser.Scene, x: number, y: number, textureKey: string, maxHP: number = 300) {
         super(scene, x, y, textureKey);
+        this.maxHP = maxHP;
         scene.add.existing(this);
         scene.physics.add.existing(this, true); // true for static
 

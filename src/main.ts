@@ -4,6 +4,7 @@ import { GameScene } from './scenes/GameScene';
 import { MainMenuScene } from './scenes/MainMenuScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { PauseScene } from './scenes/PauseScene';
+import { CustomizationScene } from './scenes/CustomizationScene';
 // @ts-ignore
 import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-plugin.js';
 
@@ -40,7 +41,7 @@ const config: Phaser.Types.Core.GameConfig = {
             start: true
         }]
     },
-    scene: [MainMenuScene, GameScene, GameOverScene, PauseScene]
+    scene: [MainMenuScene, GameScene, GameOverScene, PauseScene, CustomizationScene]
 };
 
 new Phaser.Game(config);

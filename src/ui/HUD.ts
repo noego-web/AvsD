@@ -26,20 +26,47 @@ export class HUD {
         const superBtnY = height - 130;
 
         // Super Attack Button 
-        const superBtn = scene.add.circle(width - 80, superBtnY, 40, 0x0000ff, 0.3)
-            .setScrollFactor(0).setDepth(10000).setInteractive({ useHandCursor: true });
+        const superBtn = scene.add.container(width - 80, superBtnY).setScrollFactor(0).setDepth(20000);
+        const sSize = 36;
+        const sBg = scene.add.graphics();
         
-        this.superIcon = scene.add.text(width - 80, superBtnY, 'ULT', { 
-            fontSize: '24px', 
-            color: '#ffffff', 
+        const drawSuper = (color: number, alpha: number) => {
+            sBg.clear();
+            sBg.fillStyle(color, alpha);
+            sBg.fillRoundedRect(-sSize, -sSize, sSize*2, sSize*2, 18);
+            sBg.lineStyle(3, 0x9d50bb, 0.9);
+            sBg.strokeRoundedRect(-sSize, -sSize, sSize*2, sSize*2, 18);
+        };
+
+        this.superIcon = scene.add.text(0, 0, 'ULT', { 
+            fontSize: '28px', 
+            color: '#e0c3fc', 
             fontStyle: 'bold' 
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
+        }).setOrigin(0.5);
 
-        this.superBtn = superBtn;
+        superBtn.add([sBg, this.superIcon]);
 
-        superBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        const sHit = scene.add.rectangle(0, 0, sSize*2, sSize*2, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+        superBtn.add(sHit);
+
+        this.superBtn = superBtn as any; // Cast for compatibility with existing update logic if needed
+        (this as any).superBg = sBg;
+        drawSuper(0x2a0845, 0.4);
+
+        sHit.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
             pointer.event.stopPropagation();
-            this.player.activateSuper();
+            if (this.player.mana >= this.player.maxMana) {
+                // Visual feedback only, logic is in GameScene.ts
+                sBg.setAlpha(0.5);
+                scene.time.delayedCall(100, () => drawSuper(0x4b0082, 0.9));
+            }
+        });
+
+        sHit.on('pointerover', () => { if(this.player.mana >= this.player.maxMana) drawSuper(0x4b0082, 0.9); });
+        sHit.on('pointerout', () => { 
+            const isReady = this.player.mana >= this.player.maxMana;
+            drawSuper(isReady ? 0x2a0845 : 0x000000, isReady ? 0.8 : 0.3); 
         });
 
         scene.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
@@ -53,9 +80,25 @@ export class HUD {
         this.hudGraphics.clear();
         this.worldGraphics.clear();
         
-        const alpha = this.player.mana >= this.player.maxMana ? 0.8 : 0.3;
-        this.superBtn.setFillStyle(0x0000ff, alpha);
-        this.superIcon.setAlpha(this.player.mana >= this.player.maxMana ? 1 : 0.5);
+        const isReady = this.player.mana >= this.player.maxMana;
+        const color = isReady ? 0x2a0845 : 0x000000;
+        const alpha = isReady ? 0.85 : 0.35;
+        
+        // Redraw ULT icon background state
+        if ((this as any).superBg) {
+            const sBg = (this as any).superBg;
+            const sSize = 36;
+            sBg.clear();
+            sBg.fillStyle(color, alpha);
+            sBg.fillRoundedRect(-sSize, -sSize, sSize*2, sSize*2, 18);
+            
+            // Pulsing highlight when ready
+            const glowAlpha = isReady ? (0.7 + Math.sin(this.player.scene.time.now / 200) * 0.2) : 0.8;
+            sBg.lineStyle(3, 0x9d50bb, glowAlpha);
+            sBg.strokeRoundedRect(-sSize, -sSize, sSize*2, sSize*2, 18);
+        }
+        
+        this.superIcon.setAlpha(isReady ? 1 : 0.5);
 
         // Global Bars on top left (Fixed on screen)
         this.drawBar(this.hudGraphics, 45, 22, 80, 10, this.player.hp / this.player.maxHP, 0xff0000);

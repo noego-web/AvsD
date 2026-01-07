@@ -1,71 +1,74 @@
+import { GameStorage } from './Storage';
+
 export class GameDataManager {
     private static readonly COINS_KEY = 'avd_coins';
     private static readonly UNLOCKED_ANGELS_KEY = 'avd_unlocked_angels';
     private static readonly UNLOCKED_COLUMNS_KEY = 'avd_unlocked_columns';
-    private static readonly SELECTED_ANGEL_KEY = 'avd_selected_angel';
-    private static readonly SELECTED_COLUMN_KEY = 'avd_selected_column';
+    private static readonly SELECTED_ANGEL_KEY = 'selectedAngel';
+    private static readonly SELECTED_COLUMN_KEY = 'selectedColumn';
 
     // Default configuration
     private static readonly DEFAULT_ANGELS = ['angel-1'];
     private static readonly DEFAULT_COLUMNS = ['column-1'];
 
-    static getCoins(): number {
-        return parseInt(localStorage.getItem(this.COINS_KEY) || '0', 10);
+    static async getCoins(): Promise<number> {
+        const val = await GameStorage.get(this.COINS_KEY);
+        return parseInt(val || '0', 10);
     }
 
-    static addCoins(amount: number): void {
-        const current = this.getCoins();
-        localStorage.setItem(this.COINS_KEY, (current + amount).toString());
+    static async addCoins(amount: number): Promise<void> {
+        const current = await this.getCoins();
+        await GameStorage.set(this.COINS_KEY, (current + amount).toString());
     }
 
-    static spendCoins(amount: number): boolean {
-        const current = this.getCoins();
+    static async spendCoins(amount: number): Promise<boolean> {
+        const current = await this.getCoins();
         if (current >= amount) {
-            localStorage.setItem(this.COINS_KEY, (current - amount).toString());
+            await GameStorage.set(this.COINS_KEY, (current - amount).toString());
             return true;
         }
         return false;
     }
 
-    static getUnlockedAngels(): string[] {
-        const stored = localStorage.getItem(this.UNLOCKED_ANGELS_KEY);
+    static async getUnlockedAngels(): Promise<string[]> {
+        const stored = await GameStorage.get(this.UNLOCKED_ANGELS_KEY);
         return stored ? JSON.parse(stored) : [...this.DEFAULT_ANGELS];
     }
 
-    static unlockAngel(skinId: string): void {
-        const unlocked = this.getUnlockedAngels();
+    static async unlockAngel(skinId: string): Promise<void> {
+        const unlocked = await this.getUnlockedAngels();
         if (!unlocked.includes(skinId)) {
             unlocked.push(skinId);
-            localStorage.setItem(this.UNLOCKED_ANGELS_KEY, JSON.stringify(unlocked));
+            await GameStorage.set(this.UNLOCKED_ANGELS_KEY, JSON.stringify(unlocked));
         }
     }
 
-    static getUnlockedColumns(): string[] {
-        const stored = localStorage.getItem(this.UNLOCKED_COLUMNS_KEY);
+    static async getUnlockedColumns(): Promise<string[]> {
+        const stored = await GameStorage.get(this.UNLOCKED_COLUMNS_KEY);
         return stored ? JSON.parse(stored) : [...this.DEFAULT_COLUMNS];
     }
 
-    static unlockColumn(skinId: string): void {
-        const unlocked = this.getUnlockedColumns();
+    static async unlockColumn(skinId: string): Promise<void> {
+        const unlocked = await this.getUnlockedColumns();
         if (!unlocked.includes(skinId)) {
             unlocked.push(skinId);
-            localStorage.setItem(this.UNLOCKED_COLUMNS_KEY, JSON.stringify(unlocked));
+            await GameStorage.set(this.UNLOCKED_COLUMNS_KEY, JSON.stringify(unlocked));
         }
     }
 
-    static getSelectedAngel(): string {
-        return localStorage.getItem(this.SELECTED_ANGEL_KEY) || 'angel-1';
+    static async getSelectedAngel(): Promise<string> {
+        return await GameStorage.get(this.SELECTED_ANGEL_KEY) || 'angel-3';
     }
 
-    static setSelectedAngel(skinId: string): void {
-        localStorage.setItem(this.SELECTED_ANGEL_KEY, skinId);
+    static async setSelectedAngel(skinId: string): Promise<void> {
+        await GameStorage.set(this.SELECTED_ANGEL_KEY, skinId);
     }
 
-    static getSelectedColumn(): string {
-        return localStorage.getItem(this.SELECTED_COLUMN_KEY) || 'column-1';
+    static async getSelectedColumn(): Promise<string> {
+        return await GameStorage.get(this.SELECTED_COLUMN_KEY) || 'column-1';
     }
 
-    static setSelectedColumn(skinId: string): void {
-        localStorage.setItem(this.SELECTED_COLUMN_KEY, skinId);
+    static async setSelectedColumn(skinId: string): Promise<void> {
+        await GameStorage.set(this.SELECTED_COLUMN_KEY, skinId);
     }
 }

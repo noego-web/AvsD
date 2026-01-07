@@ -8,9 +8,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     public maxHP: number;
     public speed: number;
     public enemyType: EnemyType;
-    public lastAttackTime: number = 0;
     private aura: Phaser.GameObjects.Sprite;
     private particles: Phaser.GameObjects.Particles.ParticleEmitter;
+    public lastAttackTime: number = 0;
+    private avoidAngle: number = 0;
+    private lastAvoidUpdateTime: number = 0;
+    private isAvoidingPlayer: boolean = false;
 
     constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType, baseStats: any) {
         let texture = 'enemy_normal';
@@ -97,13 +100,44 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         const player = (this.scene as any).player;
         const playerDist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
 
-        if (this.enemyType === 'healer' && !isAttractActive && playerDist < 230) {
-            const angle = Phaser.Math.Angle.Between(player.x, player.y, this.x, this.y);
-            this.scene.physics.velocityFromRotation(angle, this.speed, (this.body as Phaser.Physics.Arcade.Body).velocity);
+        if (this.enemyType === 'healer' && !isAttractActive) {
+            // Support Range Logic: stay between 180 and 380 pixels from player
+            const avoidDist = 110;
+            const stopAvoidDist = 180;
+            const approachDist = 250;
+
+            if (!this.isAvoidingPlayer && playerDist < avoidDist) {
+                this.isAvoidingPlayer = true;
+            } else if (this.isAvoidingPlayer && playerDist > stopAvoidDist) {
+                this.isAvoidingPlayer = false;
+            }
+
+            if (this.isAvoidingPlayer) {
+                // Avoid Mode: Move away from player in cycles
+                const cycleTime = 800;
+                const moveTime = 800;
+                const timeInCycle = _time % cycleTime;
+
+                if (timeInCycle < moveTime) {
+                    if (_time > this.lastAvoidUpdateTime + (cycleTime - moveTime)) {
+                        this.avoidAngle = Phaser.Math.Angle.Between(player.x, player.y, this.x, this.y);
+                        this.lastAvoidUpdateTime = _time;
+                    }
+                    this.scene.physics.velocityFromRotation(this.avoidAngle, this.speed, (this.body as Phaser.Physics.Arcade.Body).velocity);
+                } else {
+                    (this.body as Phaser.Physics.Arcade.Body).setVelocity(0);
+                }
+            } else if (playerDist > approachDist) {
+                // Approach Mode: Get closer to the player if too far (Support)
+                this.scene.physics.moveToObject(this, player, this.speed * 0.8);
+            } else {
+                // Idle Mode: Found a sweet spot
+                (this.body as Phaser.Physics.Arcade.Body).setVelocity(0);
+            }
             
             if (target && target.active && target !== player && dist < 260) {
-                target.hp = Math.min(target.maxHP, target.hp + 0.3); // Buffed healing speed
-                uiGraphics.lineStyle(2, 0x00ff00, 0.6).lineBetween(this.x, this.y, target.x, target.y); // Thicker line
+                target.hp = Math.min(target.maxHP, target.hp + 0.3);
+                uiGraphics.lineStyle(2, 0x00ff00, 0.6).lineBetween(this.x, this.y, target.x, target.y);
             }
         } else if (this.enemyType === 'kami') {
             this.scene.physics.moveToObject(this, target, this.speed);
@@ -116,11 +150,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
             if (dist > range) {
                 this.scene.physics.moveToObject(this, target, this.speed);
             } else {
-                (this.body as Phaser.Physics.Arcade.Body).setVelocity(0);
                 // Attack cooldown for Player (Stacking fix)
-                if (_time > this.lastAttackTime + 800) {
-                    this.lastAttackTime = _time;
-                    (this.scene as any).handleMeleeAttack(this);
+                if (target === player) {
+                    if (_time > this.lastAttackTime + 800) {
+                        this.lastAttackTime = _time;
+                        (this.scene as any).handleMeleeAttack(this);
+                    }
                 } else {
                     const dmg = this.enemyType === 'tank' ? 0.6 : 0.3;
                     target.setData('hp', Math.max(0, target.getData('hp') - dmg));
@@ -142,6 +177,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         if (ratio > 0) {
             g.fillStyle(color, 1);
             g.fillRoundedRect(x, y, w * ratio, h, h/2);
+        }
+        
+        // Horizontal Flipping based on movement (Velocity)
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        if (body && body.velocity.x !== 0) {
+            this.setFlipX(body.velocity.x > 0);
         }
     }
 }

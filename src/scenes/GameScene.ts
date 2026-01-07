@@ -7,6 +7,7 @@ import { Bonus } from '../entities/Bonus';
 import type { BonusType } from '../entities/Bonus';
 import { Projectile } from '../entities/Projectile';
 import { HUD } from '../ui/HUD';
+import { ANGEL_SKINS, COLUMN_SKINS } from '../config/SkinConfig';
 
 export class GameScene extends Phaser.Scene {
     public player!: Player;
@@ -51,9 +52,13 @@ export class GameScene extends Phaser.Scene {
         this.load.image('enemy_tank', 'src/assets/images/demons/demon-tank.webp');
         this.load.image('enemy_kami', 'src/assets/images/demons/demon-caze.webp');
         this.load.image('enemy_healer', 'src/assets/images/demons/demon-healer.webp');
-        this.load.image('column_1', 'src/assets/images/columns/column-1.webp');
-        this.load.image('column_2', 'src/assets/images/columns/column-2.webp');
-        this.load.image('column_3', 'src/assets/images/columns/column-3.webp');
+        
+        // Load all available skins to prevent cache issues
+        const angels = ['angel-1', 'angel-2', 'angel-3'];
+        const columns = ['column-1', 'column-2', 'column-3'];
+        
+        angels.forEach(id => this.load.image(id, `src/assets/images/angels/${id}.webp`));
+        columns.forEach(id => this.load.image(id, `src/assets/images/columns/${id}.webp`));
 
         // Map skin
         this.load.image('map_bg', 'src/assets/images/maps/map-1.png');
@@ -99,18 +104,20 @@ export class GameScene extends Phaser.Scene {
 
     create() {
         const w = this.scale.width, h = this.scale.height;
-        const mw = w * 1.3, mh = h * 1.3; // Map increased to 1.3x (+30%) as requested
+        const mw = w * 1.3, mh = h * 1.8; // Increased height significantly for maneuvering
 
         // Background Map (Centered and scaled to cover map bounds)
         const map = this.add.image(mw/2, mh/2, 'map_bg');
         const scale = Math.max(mw / map.width, mh / map.height);
         map.setScale(scale).setAlpha(0.9);
 
+        const selectedColumnId = this.game.registry.get('selectedColumn') || 'column-1';
+        const colStats = COLUMN_SKINS.find(s => s.id === selectedColumnId) || COLUMN_SKINS[0];
+        
         this.columns = this.physics.add.staticGroup();
-        const columnSkins = ['column_1', 'column_2', 'column_3'];
-        for (let i = 0; i < 2; i++) {
-            const cx = Phaser.Math.Between(mw * 0.35, mw * 0.65);
-            const cy = Phaser.Math.Between(mh * 0.35, mh * 0.65);
+        for (let i = 0; i < 3; i++) { // Increased column count
+            const cx = Phaser.Math.Between(mw * 0.25, mw * 0.75);
+            const cy = Phaser.Math.Between(mh * 0.25, mh * 0.75);
             
             let overlap = false;
             this.columns.getChildren().forEach((c: any) => {
@@ -118,13 +125,21 @@ export class GameScene extends Phaser.Scene {
             });
 
             if (!overlap) {
-                this.columns.add(new Column(this, cx, cy, Phaser.Utils.Array.GetRandom(columnSkins)));
+                this.columns.add(new Column(this, cx, cy, colStats.id, colStats.maxHP));
             } else {
                 i--;
             }
         }
 
-        this.player = new Player(this, mw/2, mh/2);
+        const selectedAngelId = this.game.registry.get('selectedAngel') || 'angel-3';
+        const angelStats = ANGEL_SKINS.find(s => s.id === selectedAngelId) || ANGEL_SKINS[0];
+
+        this.player = new Player(this, mw/2, mh/2, angelStats.id, {
+            mana: angelStats.manaMult,
+            speed: angelStats.speedMult,
+            damage: angelStats.damageMult,
+            cooldown: angelStats.cooldownMult
+        });
 
         this.enemies = this.physics.add.group();
         this.bonuses = this.physics.add.group();
@@ -171,7 +186,22 @@ export class GameScene extends Phaser.Scene {
         this.rightJoystick = jsPlugin.add(this, config(0, 0)).setVisible(false);
 
         this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-            if(Phaser.Math.Distance.Between(p.x, p.y, this.scale.width - 60, 50) < 55) return;
+            // Check for ULT button first
+            const superX = this.scale.width - 80;
+            const superY = this.scale.height - 130;
+            const isNearSuper = Phaser.Math.Distance.Between(p.x, p.y, superX, superY) < 60;
+            
+            if (isNearSuper) {
+                if (this.player.mana >= this.player.maxMana) {
+                    this.player.activateSuper();
+                }
+                return;
+            }
+
+            // Check for Pause button
+            const isNearPause = Phaser.Math.Distance.Between(p.x, p.y, this.scale.width - 60, 50) < 55;
+            if (isNearPause) return;
+
             if(p.x < this.scale.width / 2) {
                 this.leftJoystick.x = p.x; this.leftJoystick.y = p.y; this.leftJoystick.setVisible(true);
             } else {
@@ -230,7 +260,7 @@ export class GameScene extends Phaser.Scene {
                 this.buffTimers[k] -= delta;
                 if(this.buffTimers[k] <= 0) {
                     this.buffTimers[k] = 0;
-                    if(k === 'speed') this.player.speed = 112;
+                    if(k === 'speed') this.player.speed = 112 * this.player.speedMult;
                 }
             }
         });
@@ -259,9 +289,19 @@ export class GameScene extends Phaser.Scene {
             g.lineStyle(4, 0x9400d3, 0.6).strokeCircle(this.player.x, this.player.y, 100);
         }
 
-        // Final UI
+        // Final UI (Column Damage Alert)
         if(this.columnDamageThisFrame) {
-            this.screenGlow.lineStyle(20, 0xff0000, 0.4).strokeRect(0,0, this.scale.width, this.scale.height);
+            // High-fidelity blurred glow (12 layers for buttery smooth fade)
+            const steps = 12;
+            const baseAlpha = 0.25; // Much softer starting alpha
+            for(let i = 0; i < steps; i++) {
+                const thickness = 10 + i * 8; // Dense layering
+                const alpha = (baseAlpha / steps) * (steps - i) * 1.5;
+                if (alpha > 0) {
+                    this.screenGlow.lineStyle(thickness, 0x773333, alpha)
+                        .strokeRect(0, 0, this.scale.width, this.scale.height);
+                }
+            }
         }
 
         // Game Over Check
@@ -299,7 +339,7 @@ export class GameScene extends Phaser.Scene {
                 const diff = Math.abs(Phaser.Math.Angle.ShortestBetween(beamAngleDeg, angleDeg));
                 
                 if (diff < halfWidth) {
-                    e.hp -= 2.5 * dMult;
+                    e.hp -= 2.5 * dMult * this.player.damageMult;
                     this.player.addMana(0.5);
                     e.setTint(0xffaaaa);
                     this.time.delayedCall(50, () => { if (e.active) e.clearTint(); });
